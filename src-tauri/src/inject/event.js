@@ -42,6 +42,7 @@ function handleShortcut(event) {
 
 //这里参考 ChatGPT 的代码
 const uid = () => window.crypto.getRandomValues(new Uint32Array(1))[0];
+
 function transformCallback(callback = () => {}, once = false) {
   const identifier = uid();
   const prop = `_${identifier}`;
@@ -57,6 +58,7 @@ function transformCallback(callback = () => {}, once = false) {
   });
   return identifier;
 }
+
 async function invoke(cmd, args) {
   return new Promise((resolve, reject) => {
     if (!window.__TAURI_POST_MESSAGE__)
@@ -78,7 +80,32 @@ async function invoke(cmd, args) {
   });
 }
 
+// Judgment of file download.
+function isDownloadLink(url) {
+  const fileExtensions = [
+    '3gp', '7z', 'ai', 'apk', 'avi', 'bmp', 'csv', 'dmg', 'doc', 'docx', 'fla', 'flv', 'gif', 'gz', 'gzip',
+    'ico', 'iso', 'indd', 'jar', 'jpeg', 'jpg', 'm3u8', 'mov', 'mp3', 'mp4', 'mpa', 'mpg',
+    'mpeg', 'msi', 'odt', 'ogg', 'ogv', 'pdf', 'png', 'ppt', 'pptx', 'psd', 'rar', 'raw', 'rss', 'svg',
+    'swf', 'tar', 'tif', 'tiff', 'ts', 'txt', 'wav', 'webm', 'webp', 'wma', 'wmv', 'xls', 'xlsx', 'xml', 'zip',
+  ];
+  const downloadLinkPattern = new RegExp(`\\.(${fileExtensions.join('|')})$`, 'i');
+  return downloadLinkPattern.test(url);
+}
+
+// No need to go to the download link.
+function externalDownLoadLink() {
+  return ['quickref.me'].indexOf(location.hostname) > -1;
+}
+
+// Directly jumping out without hostname address.
+function externalTargetLink() {
+  return ['zbook.lol'].indexOf(location.hostname) > -1;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  const tauri = window.__TAURI__;
+  const appWindow = tauri.window.appWindow;
+
   const topDom = document.createElement('div');
   topDom.id = 'pack-top-dom';
   document.body.appendChild(topDom);
@@ -87,16 +114,18 @@ document.addEventListener('DOMContentLoaded', () => {
   domEl.addEventListener('mousedown', (e) => {
     e.preventDefault();
     if (e.buttons === 1 && e.detail !== 2) {
-      invoke('drag_window');
+      appWindow.startDragging().then();
     }
   });
 
   domEl.addEventListener('touchstart', () => {
-    invoke('drag_window');
+    appWindow.startDragging().then();
   });
 
   domEl.addEventListener('dblclick', () => {
-    invoke('fullscreen');
+    appWindow.isFullscreen().then((fullscreen) => {
+      appWindow.setFullscreen(!fullscreen).then();
+    });
   });
 
   document.addEventListener('keyup', (event) => {
@@ -108,9 +137,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.addEventListener('click', (e) => {
+  const detectAnchorElementClick = (e) => {
     const anchorElement = e.target.closest('a');
-
     if (anchorElement && anchorElement.href) {
       const target = anchorElement.target;
       anchorElement.target = '_self';
@@ -120,32 +148,44 @@ document.addEventListener('DOMContentLoaded', () => {
       // Handling external link redirection.
       if (
         window.location.host !== hrefUrl.host &&
-        (target === '_blank' || target === '_new')
+        (target === '_blank' || target === '_new' || externalTargetLink())
       ) {
-        e.preventDefault();
-        invoke('open_browser', { url: absoluteUrl });
+        e.preventDefault && e.preventDefault();
+        tauri.shell.open(absoluteUrl);
         return;
       }
 
+      let filename = anchorElement.download || getFilenameFromUrl(absoluteUrl);
+
       // Process download links for Rust to handle.
+      // If the download attribute is set, the download attribute is used as the file name.
       if (
-        /\.[a-zA-Z0-9]+$/i.test(removeUrlParameters(absoluteUrl)) &&
+        (anchorElement.download ||
+          e.metaKey ||
+          e.ctrlKey ||
+          isDownloadLink(absoluteUrl)) &&
         !externalDownLoadLink()
       ) {
         e.preventDefault();
         invoke('download_file', {
           params: {
             url: absoluteUrl,
-            filename: getFilenameFromUrl(absoluteUrl),
+            filename,
           },
         });
       }
     }
-  });
+  };
+
+  // Prevent some special websites from executing in advance, before the click event is triggered.
+  document.addEventListener('click', detectAnchorElementClick, true);
+
+  collectUrlToBlobs();
+  detectDownloadByCreateAnchor();
 
   // Rewrite the window.open function.
   const originalWindowOpen = window.open;
-  window.open = function (url, name, specs) {
+  window.open = function(url, name, specs) {
     // Apple login and google login
     if (name === 'AppleAuthentication') {
       //do nothing
@@ -154,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       const baseUrl = window.location.origin + window.location.pathname;
       const hrefUrl = new URL(url, baseUrl);
-      invoke('open_browser', { url: hrefUrl.href });
+      tauri.shell.open(hrefUrl.href);
     }
     // Call the original window.open function to maintain its normal functionality.
     return originalWindowOpen.call(window, url, name, specs);
@@ -187,11 +227,6 @@ function removeUrlParameters(url) {
   return parsedUrl.toString();
 }
 
-// No need to go to the download link.
-function externalDownLoadLink() {
-  return ['quickref.me'].indexOf(location.hostname) > -1;
-}
-
 // Toggle video playback when the window is hidden.
 function toggleVideoPlayback(pause) {
   const videos = document.getElementsByTagName('video');
@@ -204,3 +239,56 @@ function toggleVideoPlayback(pause) {
   }
 }
 
+// Collect blob urls to blob by overriding window.URL.createObjectURL
+function collectUrlToBlobs() {
+  const backupCreateObjectURL = window.URL.createObjectURL;
+  window.blobToUrlCaches = new Map();
+  window.URL.createObjectURL = (blob) => {
+    const url = backupCreateObjectURL.call(window.URL, blob);
+    window.blobToUrlCaches.set(url, blob);
+    return url;
+  };
+}
+
+function convertBlobUrlToBinary(blobUrl) {
+  return new Promise((resolve) => {
+    const blob = window.blobToUrlCaches.get(blobUrl);
+    const reader = new FileReader();
+
+    reader.readAsArrayBuffer(blob);
+    reader.onload = () => {
+      resolve(reader.result);
+    };
+  });
+}
+
+function downloadFromBlobUrl(blobUrl, filename) {
+  const tauri = window.__TAURI__;
+  convertBlobUrlToBinary(blobUrl).then((binary) => {
+    console.log('binary', binary);
+    tauri.fs.writeBinaryFile(filename, binary, {
+      dir: tauri.fs.BaseDirectory.Download,
+    }).then(() => {
+      window.pakeToast('Download successful, saved to download directory~');
+    });
+  });
+}
+
+// detect blob download by createElement("a")
+function detectDownloadByCreateAnchor() {
+  const createEle = document.createElement;
+  document.createElement = (el) => {
+    if (el !== 'a') return createEle.call(document, el);
+    const anchorEle = createEle.call(document, el);
+
+    // use addEventListener to avoid overriding the original click event.
+    anchorEle.addEventListener('click', () => {
+      const url = anchorEle.href;
+      if (window.blobToUrlCaches.has(url)) {
+        downloadFromBlobUrl(url, anchorEle.download || getFilenameFromUrl(url));
+      }
+    });
+
+    return anchorEle;
+  };
+}

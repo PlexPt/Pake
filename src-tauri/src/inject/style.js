@@ -1,4 +1,4 @@
-window.addEventListener('DOMContentLoaded', (_event) => {
+window.addEventListener('DOMContentLoaded', _event => {
   const css = `
     #page #footer-wrapper,
     .drawing-board .toolbar .toolbar-action,
@@ -41,11 +41,23 @@ window.addEventListener('DOMContentLoaded', (_event) => {
       display: none !important;
     }
 
+    #__next header.HeaderBar_header__jn5ju{
+      padding-top: 16px;
+    }
+
+    #__next .ChatPageSidebar_menuFooter__E1KTY,#__next > div.PageWithSidebarLayout_centeringDiv___L9br > div > aside > div > menu > section:nth-child(6) {
+      display: none;
+    }
+
     #page .main_header, .cb-layout-basic--navbar,
     #app .splitpanes.splitpanes--horizontal.no-splitter header,
     .fui-FluentProvider .fui-Button[data-testid="HomeButton"],
     #__next > div.PageWithSidebarLayout_centeringDiv___L9br > aside .ChatPageSidebar_logo__9PIXq {
       padding-top: 20px;
+    }
+
+    #__next > div.overflow-hidden.w-full.h-full  .min-h-\\[20px\\].items-start.gap-4.whitespace-pre-wrap.break-words {
+      word-break: break-all;
     }
 
     #__next .PageWithSidebarLayout_mainSection__i1yOg {
@@ -55,6 +67,11 @@ window.addEventListener('DOMContentLoaded', (_event) => {
 
     #__next > div.PageWithSidebarLayout_centeringDiv___L9br > aside{
       min-width: 260px;
+    }
+
+    #__next > div.overflow-hidden.w-full.h-full.relative.flex.z-0 > div.relative.flex.h-full.max-w-full.flex-1.overflow-hidden > div > main > div.absolute.left-2.top-2.z-10.hidden.md\\:inline-block{
+      margin-top:20px;
+      margin-left: 10px;
     }
 
     .chakra-ui-light #app .chakra-heading,
@@ -148,10 +165,12 @@ window.addEventListener('DOMContentLoaded', (_event) => {
       margin-top:24px;
     }
 
+
     #react-root [data-testid="placementTracking"] article,
     #react-root a[href*="quick_promote_web"],
     #react-root [data-testid="AppTabBar_Explore_Link"],
     #react-root a[href*="/lists"][role="link"][aria-label],
+    #react-root a[href*="/i/communitynotes"][role="link"][aria-label],
     #react-root a[href*="/i/verified-orgs-signup"][role="link"][aria-label] {
       display: none !important;
     }
@@ -297,7 +316,8 @@ window.addEventListener('DOMContentLoaded', (_event) => {
     }
 
     @media (min-width:1024px){
-      #__next .text-base.lg\\:max-w-xl, #__next form.stretch.lg\\:max-w-2xl {
+      #__next .text-base.lg\\:max-w-xl, #__next form.stretch.lg\\:max-w-2xl,
+      #__next > .w-full.h-full .lg\\:max-w-\\[38rem\\] {
         max-width: 44rem;
       }
     }
@@ -311,6 +331,20 @@ window.addEventListener('DOMContentLoaded', (_event) => {
     @media (max-width:767px){
       #__next .overflow-hidden.w-full .max-w-full>.sticky.top-0 {
         padding-top: 20px;
+      }
+
+      #__next .overflow-hidden.w-full main.relative.h-full.w-full.flex-1{
+        padding-bottom: 82px;
+      }
+
+      #__next > div.overflow-hidden.w-full.h-full  main.relative.h-full.w-full.flex-1 > .flex-1.overflow-hidden .h-32.md\\:h-48.flex-shrink-0{
+        height: 0px;
+      }
+    }
+
+    @media (max-width:565px){
+      #__next .overflow-hidden.w-full main.relative.h-full.w-full.flex-1{
+        padding-bottom: 98px;
       }
     }
 
